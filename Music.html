@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mind - Music</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Sidebar -->
+  <aside class="w-20 bg-white shadow-md flex flex-col items-center py-6">
+    <button onclick="toggleNoteInput()" class="bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-full w-14 h-14 text-2xl mb-4 hover:bg-gradient-to-r hover:from-purple-700 hover:to-indigo-600 transition">+</button>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6">
+    <h1 class="text-4xl font-bold mb-6">Music Notes</h1>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-4 mb-6">
+      <input type="text" id="tagSearch" placeholder="Search by tag" oninput="renderNotes()" class="px-4 py-2 rounded-lg border border-gray-300 w-48" />
+      <select id="filterCategory" onchange="renderNotes()" class="px-4 py-2 rounded-lg border border-gray-300 w-48">
+        <option value="all">All Categories</option>
+      </select>
+      <button onclick="renderNotes()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">Search</button>
+      <label class="flex items-center gap-1">
+        <input type="checkbox" id="starFilter" onchange="renderNotes()" class="accent-purple-600" />
+        <span class="text-lg">★ Only</span>
+      </label>
+    </div>
+
+    <!-- New Note Panel -->
+    <div id="notePanel" class="bg-white rounded-2xl p-6 shadow-lg mb-6 hidden">
+      <textarea id="noteInput" rows="4" placeholder="Write your note..." class="w-full p-4 border border-gray-300 rounded-lg mb-4"></textarea>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input type="text" id="tagsInput" placeholder="Tags (comma separated)" class="p-2 border border-gray-300 rounded-lg" />
+        <div class="flex gap-2">
+          <select id="categoryInput" class="flex-1 p-2 border border-gray-300 rounded-lg"></select>
+          <input type="text" id="newCategoryInput" placeholder="New Category" class="p-2 border border-gray-300 rounded-lg" />
+          <button onclick="addCategory()" class="bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600">+</button>
+          <button onclick="deleteCategory()" class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600">-</button>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-4">
+        <input type="file" id="imageInput" accept="image/*" class="block" />
+        <input type="color" id="colorPicker" class="w-10 h-10 p-1 border rounded-full" />
+        <button onclick="insertImageIntoNote()" class="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700">Insert Image</button>
+      </div>
+      <div class="mt-6">
+        <button onclick="addNote()" class="bg-gradient-to-r from-green-500 to-teal-500 text-white px-6 py-3 rounded-xl text-lg hover:bg-gradient-to-r hover:from-green-600 hover:to-teal-600">Save Note</button>
+      </div>
+    </div>
+
+    <!-- Notes Grid -->
+    <div id="notesContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <!-- Music Player Section -->
+    <section id="musicPlayerSection" class="mt-12 bg-white p-6 rounded-2xl shadow-lg">
+      <h2 class="text-3xl font-bold mb-4">Playlist</h2>
+      <div class="mb-6">
+        <input type="file" id="songInput" accept="audio/*" class="hidden" />
+        <button onclick="document.getElementById('songInput').click()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 mb-4">Add Song</button>
+      </div>
+      <div id="playlistContainer" class="space-y-4">
+        <!-- Playlist will render here -->
+      </div>
+      <div class="mt-6">
+        <button onclick="togglePlayer()" class="bg-blue-500 text-white px-6 py-3 rounded-xl text-lg hover:bg-blue-600">Open Player</button>
+      </div>
+    </section>
+
+    <!-- Music Player -->
+    <section id="audioPlayer" class="hidden bg-white p-6 mt-8 rounded-2xl shadow-lg">
+      <h2 class="text-3xl font-bold mb-4">Now Playing</h2>
+      <audio id="audioElement" controls class="w-full">
+        <source id="audioSource" type="audio/mp3">
+      </audio>
+      <button onclick="closePlayer()" class="bg-gray-600 text-white px-4 py-2 rounded-lg mt-4">Close Player</button>
+    </section>
+  </main>
+
+  <script>
+    let notes = JSON.parse(localStorage.getItem("musicNotes")) || [];
+    let categories = JSON.parse(localStorage.getItem("musicCategories")) || ["General", "Playlist", "Favorites"];
+    let editingIndex = null;
+
+    let playlist = [];
+
+    const notePanel = document.getElementById("notePanel");
+    const categoryInput = document.getElementById("categoryInput");
+    const filterCategory = document.getElementById("filterCategory");
+
+    // Note Management
+    function toggleNoteInput() {
+      editingIndex = null; // Reset editingIndex
+      notePanel.classList.toggle("hidden");
+    }
+
+    function saveData() {
+      localStorage.setItem("musicNotes", JSON.stringify(notes));
+      localStorage.setItem("musicCategories", JSON.stringify(categories));
+    }
+
+    function addCategory() {
+      const newCat = document.getElementById("newCategoryInput").value.trim();
+      if (newCat && !categories.includes(newCat)) {
+        categories.push(newCat);
+        updateCategorySelects();
+        saveData();
+      }
+      document.getElementById("newCategoryInput").value = "";
+    }
+
+    function deleteCategory() {
+      const cat = document.getElementById("newCategoryInput").value.trim();
+      if (cat && categories.includes(cat)) {
+        categories = categories.filter(c => c !== cat);
+        updateCategorySelects();
+        saveData();
+      }
+      document.getElementById("newCategoryInput").value = "";
+    }
+
+    function updateCategorySelects() {
+      categoryInput.innerHTML = "";
+      filterCategory.innerHTML = '<option value="all">All Categories</option>';
+      categories.forEach(cat => {
+        const option = `<option value="${cat}">${cat}</option>`;
+        categoryInput.innerHTML += option;
+        filterCategory.innerHTML += option;
+      });
+    }
+
+    function insertImageIntoNote() {
+      const file = document.getElementById("imageInput").files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const imgTag = `<img src='${e.target.result}' style='max-width:100%;' />`;
+        document.getElementById("noteInput").value += "\n" + imgTag;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function addNote() {
+      const content = document.getElementById("noteInput").value.trim();
+      const tags = document.getElementById("tagsInput").value.split(",").map(t => t.trim()).filter(Boolean);
+      const category = categoryInput.value;
+      const color = document.getElementById("colorPicker").value;
+
+      if (!content) return;
+      if (editingIndex !== null) {
+        notes[editingIndex] = { content, tags, category, color, starred: false };
+      } else {
+        notes.push({ content, tags, category, color, starred: false });
+      }
+
+      saveData();
+      renderNotes();
+
+      document.getElementById("noteInput").value = "";
+      document.getElementById("tagsInput").value = "";
+      notePanel.classList.add("hidden");
+    }
+
+    function renderNotes() {
+      const tagSearch = document.getElementById("tagSearch").value.toLowerCase();
+      const selectedCategory = filterCategory.value;
+      const starOnly = document.getElementById("starFilter").checked;
+      const container = document.getElementById("notesContainer");
+      container.innerHTML = "";
+
+      notes.forEach((note, index) => {
+        const matchesCategory = selectedCategory === "all" || note.category === selectedCategory;
+        const matchesTags = tagSearch === "" || note.tags.some(tag => tag.toLowerCase().includes(tagSearch));
+        const matchesStar = !starOnly || note.starred;
+
+        if (matchesCategory && matchesTags && matchesStar) {
+          const div = document.createElement("div");
+          div.className = "bg-white rounded-xl p-4 shadow relative cursor-pointer";
+          div.style.backgroundColor = note.color || "white";
+          div.innerHTML = `
+            <div class="mb-2">${note.content}</div>
+            <div class="flex justify-between items-center mt-2">
+              <span class="text-sm text-gray-600">${note.category}</span>
+              <div class="flex gap-2">
+                <button onclick="event.stopPropagation(); deleteNote(${index})" class="text-red-500 hover:text-red-700">✕</button>
+                <button onclick="event.stopPropagation(); toggleStar(${index})" class="text-yellow-500">${note.starred ? "★" : "☆"}</button>
+              </div>
+            </div>
+          `;
+          div.onclick = () => openViewer(index);
+          container.appendChild(div);
+        }
+      });
+    }
+
+    function deleteNote(index) {
+      notes.splice(index, 1);
+      saveData();
+      renderNotes();
+    }
+
+    function toggleStar(index) {
+      notes[index].starred = !notes[index].starred;
+      saveData();
+      renderNotes();
+    }
+
+    function openViewer(index) {
+      editingIndex = index;
+      const note = notes[index];
+      document.getElementById("noteInput").value = note.content;
+      document.getElementById("tagsInput").value = note.tags.join(", ");
+      categoryInput.value = note.category;
+      document.getElementById("notePanel").classList.remove("hidden");
+    }
+
+    function closeViewer() {
+      editingIndex = null;
+      document.getElementById("notePanel").classList.add("hidden");
+    }
+
+    // Playlist Section
+    function addSongToPlaylist(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const song = {
+          name: file.name,
+          src: e.target.result
+        };
+        playlist.push(song);
+        renderPlaylist();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderPlaylist() {
+      const container = document.getElementById("playlistContainer");
+      container.innerHTML = "";
+      playlist.forEach((song, index) => {
+        const div = document.createElement("div");
+        div.className = "flex justify-between items-center p-4 bg-gray-200 rounded-lg";
+        div.innerHTML = `
+          <span>${song.name}</span>
+          <button onclick="playSong(${index})" class="text-blue-500">Play</button>
+          <button onclick="removeSong(${index})" class="text-red-500">Remove</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function playSong(index) {
+      const song = playlist[index];
+      const audio = document.getElementById("audioElement");
+      const audioSource = document.getElementById("audioSource");
+      audioSource.src = song.src;
+      audio.load();
+      audio.play();
+    }
+
+    function removeSong(index) {
+      playlist.splice(index, 1);
+      renderPlaylist();
+    }
+
+    function togglePlayer() {
+      document.getElementById("audioPlayer").classList.toggle("hidden");
+    }
+
+    function closePlayer() {
+      document.getElementById("audioPlayer").classList.add("hidden");
+    }
+
+    updateCategorySelects();
+    renderNotes();
+  </script>
+</body>
+</html>
+
+
+
+

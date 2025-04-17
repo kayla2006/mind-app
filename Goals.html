@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mind - Goals</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex">
+  <!-- Sidebar -->
+  <aside class="w-20 bg-white shadow-md flex flex-col items-center py-6">
+    <button onclick="toggleNoteInput()" class="bg-pink-600 text-white rounded-full w-12 h-12 text-2xl mb-4 hover:bg-pink-700 transition">+</button>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6">
+    <h1 class="text-4xl font-bold mb-6">Goals</h1>
+
+    <!-- New Note Panel -->
+    <div id="notePanel" class="bg-white rounded-2xl p-6 shadow-lg mb-6 hidden">
+      <textarea id="noteInput" rows="4" placeholder="Write your goal note..." class="w-full p-4 border border-gray-300 rounded-lg mb-4"></textarea>
+      <div class="flex items-center gap-4">
+        <input type="color" id="colorPicker" class="w-10 h-10 p-1 border rounded-full" />
+        <button onclick="addNote()" class="bg-green-500 text-white px-6 py-3 rounded-xl text-lg hover:bg-green-600">Save Note</button>
+      </div>
+    </div>
+
+    <!-- Notes Grid -->
+    <div id="notesContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"></div>
+
+    <!-- Gallery Section -->
+    <h2 class="text-2xl font-bold mb-4">Inspiration Gallery</h2>
+    <div class="flex gap-4 overflow-x-auto pb-4" id="galleryContainer"></div>
+    <input type="file" id="galleryInput" accept="image/*" class="hidden" onchange="addImageToGallery(event)" />
+    <button onclick="document.getElementById('galleryInput').click()" class="mt-4 bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700">Add Image</button>
+  </main>
+
+  <!-- Viewer Modal -->
+  <div id="overlay" class="fixed inset-0 bg-black/30 hidden z-40" onclick="closeViewer()"></div>
+  <div id="viewer" class="fixed z-50 top-[5%] left-1/2 transform -translate-x-1/2 w-[90vw] max-w-4xl h-[80vh] bg-white rounded-xl shadow-xl p-6 overflow-y-auto hidden">
+    <textarea id="editText" class="w-full h-[calc(80vh-100px)] p-4 border border-gray-300 rounded-lg resize-none overflow-y-auto"></textarea>
+    <div class="mt-4 flex justify-end gap-4">
+      <button onclick="saveEdit()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Save</button>
+      <button onclick="closeViewer()" class="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">Close</button>
+    </div>
+  </div>
+
+  <script>
+    let notes = JSON.parse(localStorage.getItem("goalNotes")) || [];
+    let galleryImages = JSON.parse(localStorage.getItem("goalGallery")) || [];
+    let editingIndex = null;
+
+    const notePanel = document.getElementById("notePanel");
+    const notesContainer = document.getElementById("notesContainer");
+
+    function toggleNoteInput() {
+      notePanel.classList.toggle("hidden");
+    }
+
+    function saveData() {
+      localStorage.setItem("goalNotes", JSON.stringify(notes));
+      localStorage.setItem("goalGallery", JSON.stringify(galleryImages));
+    }
+
+    function addNote() {
+      const content = document.getElementById("noteInput").value.trim();
+      const color = document.getElementById("colorPicker").value;
+      if (!content) return;
+      notes.push({ content, color });
+      document.getElementById("noteInput").value = "";
+      toggleNoteInput();
+      saveData();
+      renderNotes();
+    }
+
+    function renderNotes() {
+      notesContainer.innerHTML = "";
+      notes.forEach((note, index) => {
+        const div = document.createElement("div");
+        div.className = "bg-white rounded-xl p-4 shadow relative cursor-pointer";
+        div.style.backgroundColor = note.color || "white";
+        div.innerHTML = `
+          <div class="mb-2">${note.content}</div>
+          <div class="absolute top-2 right-2">
+            <button onclick="event.stopPropagation(); deleteNote(${index})" class="text-red-500 hover:text-red-700">✕</button>
+          </div>
+        `;
+        div.onclick = () => openViewer(index);
+        notesContainer.appendChild(div);
+      });
+    }
+
+    function deleteNote(index) {
+      notes.splice(index, 1);
+      saveData();
+      renderNotes();
+    }
+
+    function openViewer(index) {
+      editingIndex = index;
+      document.getElementById("editText").value = notes[index].content;
+      document.getElementById("overlay").classList.remove("hidden");
+      document.getElementById("viewer").classList.remove("hidden");
+    }
+
+    function closeViewer() {
+      editingIndex = null;
+      document.getElementById("overlay").classList.add("hidden");
+      document.getElementById("viewer").classList.add("hidden");
+    }
+
+    function saveEdit() {
+      if (editingIndex !== null) {
+        notes[editingIndex].content = document.getElementById("editText").value;
+        saveData();
+        renderNotes();
+        closeViewer();
+      }
+    }
+
+    function addImageToGallery(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        galleryImages.push(e.target.result);
+        saveData();
+        renderGallery();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderGallery() {
+      const container = document.getElementById("galleryContainer");
+      container.innerHTML = "";
+      galleryImages.forEach((imgSrc, index) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "relative w-40 h-40 flex-shrink-0 overflow-hidden rounded-xl shadow-md";
+        wrapper.innerHTML = `
+          <img src="${imgSrc}" onclick="openImage('${imgSrc}')" class="w-full h-full object-cover cursor-pointer" />
+          <button onclick="event.stopPropagation(); deleteImage(${index})" class="absolute top-1 right-1 bg-white text-red-500 rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-100">✕</button>
+        `;
+        container.appendChild(wrapper);
+      });
+    }
+
+    function deleteImage(index) {
+      galleryImages.splice(index, 1);
+      saveData();
+      renderGallery();
+    }
+
+    function openImage(src) {
+      const win = window.open();
+      win.document.write('<img src="' + src + '" style="max-width:100%; max-height:100vh; display:block; margin:auto;">');
+    }
+
+    renderNotes();
+    renderGallery();
+  </script>
+</body>
+</html>
